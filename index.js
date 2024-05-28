@@ -23,6 +23,7 @@ const client = new MongoClient(uri, {
 });
 const BistroDB=client.db("Bistro-Boss");
 const menuCollection=BistroDB.collection("menu");
+const userCollection=BistroDB.collection("users");
 const reviewsCollection=BistroDB.collection("reviews");
 const cartCollection=BistroDB.collection("carts");
 
@@ -59,6 +60,14 @@ async function run() {
         const result = await cartCollection.deleteOne(query);
         res.send(result);
     });
+
+    //user related api
+
+    app.post('/users', async (req, res) => {
+        const user = req.body;
+        const result = await userCollection.insertOne(user);
+        res.send(result);
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

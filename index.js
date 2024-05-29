@@ -86,7 +86,7 @@ async function run() {
       const result = await userCollection.deleteOne(query);
       res.send(result);
     });
-    app.patch('users/admin/:id', async (req, res) => {
+    app.patch('/users/admin/:id', async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new mongodb.ObjectId(id) };
       const updatedDoc = {

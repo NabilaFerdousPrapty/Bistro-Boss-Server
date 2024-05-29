@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const mongodb = require('mongodb');
+const e = require('express');
  require('dotenv').config();
 const port=process.env.PORT || 5000;
 const app = express();
@@ -65,9 +66,20 @@ async function run() {
 
     app.post('/users', async (req, res) => {
         const user = req.body;
+        const query={email:user.email};
+        const existingUser = await userCollection.findOne(query);
+        if(existingUser){
+          res.send({message:"User already exists",insertedId:null})
+          return
+            
+        }
         const result = await userCollection.insertOne(user);
         res.send(result);
     })
+    app.get('/users', async (req, res) => {
+        const users = await userCollection.find({}).toArray();
+        res.send(users);
+    });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

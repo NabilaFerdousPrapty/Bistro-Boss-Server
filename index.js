@@ -79,6 +79,33 @@ async function run() {
       const menu = await menuCollection.find({}).toArray();
       res.send(menu);
     });
+    app.get('/menu/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new mongodb.ObjectId(id) };
+      const menu = await menuCollection.findOne(query);
+      res.send(menu);
+    });
+    app.patch('/menu/:id',verifyToken,verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new mongodb.ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          name: req.body.name,
+          price: req.body.price,
+          category: req.body.category,
+          recipe: req.body.recipe,
+          image: req.body.image
+        }
+      };
+      const result = await menuCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+    app.delete('/menu/:id',verifyToken,verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new mongodb.ObjectId(id) };
+      const result = await menuCollection.deleteOne(query);
+      res.send(result);
+    });
     app.get('/reviews', async (req, res) => {
       const reviews = await reviewsCollection.find({}).toArray();
       res.send(reviews);

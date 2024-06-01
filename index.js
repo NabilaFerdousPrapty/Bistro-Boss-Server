@@ -3,7 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const mongodb = require('mongodb');
-const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 const app = express();
 var jwt = require('jsonwebtoken');
@@ -13,29 +13,29 @@ app.use(express.json());
 app.use(cors());
 
 //
-const verifyToken=(req,res,next)=>{
-  console.log('inside verified token',req.headers.authorization);
+const verifyToken = (req, res, next) => {
+  console.log('inside verified token', req.headers.authorization);
   if (!req.headers.authorization) {
-    return res.status(401).send({message:'Unauthorized Access'});
+    return res.status(401).send({ message: 'Unauthorized Access' });
   }
-  const token=req.headers.authorization.split(' ')[1];
-  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(error,decoded)=>{
+  const token = req.headers.authorization.split(' ')[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
     if (error) {
-      return res.status(401).send({message:'Unauthorized Access'});
+      return res.status(401).send({ message: 'Unauthorized Access' });
     }
-    req.decoded=decoded
-      next();
+    req.decoded = decoded
+    next();
   })
 
 }
 
-const verifyAdmin=async(req,res,next)=>{
-  const email=req.decoded.email;
-  const query={email:email};
-  const user=await userCollection.findOne(query);
-  const isAdmin=user?.role==='admin';
+const verifyAdmin = async (req, res, next) => {
+  const email = req.decoded.email;
+  const query = { email: email };
+  const user = await userCollection.findOne(query);
+  const isAdmin = user?.role === 'admin';
   if (!isAdmin) {
-    return res.status(403).send({message:'Forbidden Access'});
+    return res.status(403).send({ message: 'Forbidden Access' });
   }
   next();
 }
@@ -55,6 +55,7 @@ const menuCollection = BistroDB.collection("menu");
 const userCollection = BistroDB.collection("users");
 const reviewsCollection = BistroDB.collection("reviews");
 const cartCollection = BistroDB.collection("carts");
+const paymentCollection = BistroDB.collection("payments");
 
 async function run() {
   try {
@@ -62,15 +63,15 @@ async function run() {
     await client.connect();
 
     //jwt related api
-    app.post('/jwt',async(req,res)=>{
-      const user=req.body;
-      const token=jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{
-        expiresIn:'1h'
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '1h'
       })
-      res.send({token});
+      res.send({ token });
 
     })
-    app.post('/menu',verifyToken,verifyAdmin, async (req, res) => {
+    app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
       const menuItem = req.body;
       const result = await menuCollection.insertOne(menuItem);
       res.send(result);
@@ -85,7 +86,7 @@ async function run() {
       const menu = await menuCollection.findOne(query);
       res.send(menu);
     });
-    app.patch('/menu/:id',verifyToken,verifyAdmin, async (req, res) => {
+    app.patch('/menu/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new mongodb.ObjectId(id) };
       const updatedDoc = {
@@ -100,7 +101,7 @@ async function run() {
       const result = await menuCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
-    app.delete('/menu/:id',verifyToken,verifyAdmin, async (req, res) => {
+    app.delete('/menu/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new mongodb.ObjectId(id) };
       const result = await menuCollection.deleteOne(query);
@@ -131,24 +132,42 @@ async function run() {
       const result = await cartCollection.deleteOne(query);
       res.send(result);
     });
-//create payment intent
-app.post("/create_payment_intent", async (req, res) => {
-  const {price}=req.body;
-  const amount=parseInt(price*100);
-  const paymentIntent=await stripe.paymentIntents.create({
-    amount:amount,
-    currency:'usd',
-    
-    payment_method_types:['card']
-  });
+    //create payment intent
+    app.post("/create_payment_intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
 
-  res.send({
-    clientSecret:paymentIntent.client_secret
-    
-  });
-  console.log('secret',paymentIntent.client_secret);
-}
-);
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+
+      });
+      console.log('secret', paymentIntent.client_secret);
+    }
+    );
+    app.post('/payments', async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+
+      //  carefully delete each item from the cart
+      console.log('payment info', payment);
+      const query = {
+        _id: {
+          $in: payment.cartIds.map(id => new mongodb.ObjectId(id))
+        }
+      };
+
+      const deleteResult = await cartCollection.deleteMany(query);
+
+      res.send({ paymentResult, deleteResult });
+    })
+
+
 
 
     //user related api
@@ -165,18 +184,18 @@ app.post("/create_payment_intent", async (req, res) => {
       const result = await userCollection.insertOne(user);
       res.send(result);
     })
-    app.get('/users',verifyToken,verifyAdmin, async (req, res) => {
-       
+    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+
       const users = await userCollection.find({}).toArray();
       res.send(users);
     });
-    app.delete('/users/:id',verifyToken,verifyAdmin, async (req, res) => {
+    app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new mongodb.ObjectId(id) };
       const result = await userCollection.deleteOne(query);
       res.send(result);
     });
-    app.patch('/users/admin/:id',verifyToken,verifyAdmin, async (req, res) => {
+    app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new mongodb.ObjectId(id) };
       const updatedDoc = {
@@ -187,19 +206,19 @@ app.post("/create_payment_intent", async (req, res) => {
       const result = await userCollection.updateOne(filter, updatedDoc);
       res.send(result);
     })
-    app.get('/users/admin/:email',verifyToken,async(req,res)=>{
-      const email=req.params.email;
-      if (email!==req.decoded.email) {
-        return res.status(403).send({message:'Forbidden Access'});
-        
+    app.get('/users/admin/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: 'Forbidden Access' });
+
       }
-      const query={email:email};
-      const user=await userCollection.findOne(query);
-      let admin=false;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
       if (user) {
-       admin=user?.role==='admin';
+        admin = user?.role === 'admin';
       }
-      res.send({admin});
+      res.send({ admin });
     })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
